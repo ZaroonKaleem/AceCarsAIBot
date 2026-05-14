@@ -19,27 +19,31 @@ About ACE Cars:
 - Test drives available 7 days a week by appointment
 - Contact: info@acecars.com`;
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+module.exports = async (req, res) => {
+  // CORS headers on every response
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
-}
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
 
-export async function POST(request) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    const { messages } = await request.json();
+    const { messages } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
-      return Response.json({ error: 'Invalid messages' }, { status: 400, headers: CORS_HEADERS });
+      return res.status(400).json({ error: 'Invalid messages format' });
     }
 
     const apiKey = process.env.TOGETHER_API_KEY;
     if (!apiKey) {
-      return Response.json({ error: 'API key not configured' }, { status: 500, headers: CORS_HEADERS });
+      return res.status(500).json({ error: 'API key not configured' });
     }
 
     const response = await fetch('https://api.together.xyz/v1/chat/completions', {
@@ -63,18 +67,16 @@ export async function POST(request) {
     if (!response.ok) {
       const err = await response.text();
       console.error('Together AI error:', err);
-      return Response.json({ error: 'AI service error' }, { status: 502, headers: CORS_HEADERS });
+      return res.status(502).json({ error: 'AI service error' });
     }
 
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content?.trim();
 
-    return Response.json({ reply }, { headers: CORS_HEADERS });
+    return res.status(200).json({ reply });
 
   } catch (error) {
     console.error('Chat API error:', error);
-    return Response.json({ error: 'Internal server error' }, { status: 500, headers: CORS_HEADERS });
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
-
-export const dynamic = 'force-dynamic';
+};
